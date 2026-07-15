@@ -43,7 +43,7 @@ That's it — no secrets to configure. It authenticates using the
 
 Once installed, every pull request gets an automatic review comment like this:
 
-![AI PR Review example](./docs/example-review.png)
+![AI PR Review example](./.docs/example-review.png)
 
 ## Inputs
 
