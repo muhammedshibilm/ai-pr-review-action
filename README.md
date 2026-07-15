@@ -29,7 +29,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: muhammedshibilm/ai-pr-review-action@v1
+      - uses: muhammedshibilm/ai-pr-review-action@v1.0.0
         # optional inputs:
         # with:
         #   model: openai/gpt-4o          # default: openai/gpt-4o-mini
@@ -38,6 +38,12 @@ jobs:
 
 That's it — no secrets to configure. It authenticates using the
 `GITHUB_TOKEN` GitHub Actions already provides.
+
+## Example output
+
+Once installed, every pull request gets an automatic review comment like this:
+
+![AI PR Review example](./docs/example-review.png)
 
 ## Inputs
 
