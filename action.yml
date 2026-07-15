@@ -1,0 +1,43 @@
+name: "AI PR Review"
+description: "Reviews pull requests using free GitHub Models (no API key required)"
+author: "your-username"
+
+branding:
+  icon: "eye"
+  color: "purple"
+
+inputs:
+  model:
+    description: "GitHub Models model to use (e.g. openai/gpt-4o-mini, openai/gpt-4o)"
+    required: false
+    default: "openai/gpt-4o-mini"
+  max_diff_chars:
+    description: "Maximum diff size (in characters) sent to the model before truncating"
+    required: false
+    default: "20000"
+  github_token:
+    description: "GitHub token used to fetch the PR diff, post comments, and call GitHub Models"
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install requests
+
+    - name: Run AI review
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+        MODEL: ${{ inputs.model }}
+        MAX_DIFF_CHARS: ${{ inputs.max_diff_chars }}
+      run: python ${{ github.action_path }}/scripts/ai_review.py
