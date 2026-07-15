@@ -29,7 +29,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: your-username/ai-pr-review-action@v1
+      - uses: muhammedshibilm/ai-pr-review-action@v1
         # optional inputs:
         # with:
         #   model: openai/gpt-4o          # default: openai/gpt-4o-mini
@@ -67,6 +67,9 @@ Issues and PRs welcome! Ideas that would be great contributions:
 - Inline comments on specific lines instead of one summary comment
 - Configurable prompt / focus areas via input
 - Support for additional GitHub Models
+
+Found a bug or have an idea? Open an issue at
+[github.com/muhammedshibilm/ai-pr-review-action/issues](https://github.com/muhammedshibilm/ai-pr-review-action/issues).
 
 ## License
 
