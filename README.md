@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".docs/logo.png" width="120" alt="AI PR Review logo">
+</p>
+
 # AI PR Review Action
 
 A free, open-source GitHub Action that reviews pull requests using
