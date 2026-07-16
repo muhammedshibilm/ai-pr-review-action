@@ -9,6 +9,8 @@ REPO = os.environ["REPO"]
 MODEL = os.environ.get("MODEL", "openai/gpt-4o-mini")
 MAX_DIFF_CHARS = int(os.environ.get("MAX_DIFF_CHARS", "20000"))
 FAIL_ON_ERROR = os.environ.get("FAIL_ON_ERROR", "false").lower() == "true"
+FOCUS_AREAS_RAW = os.environ.get("FOCUS_AREAS", "bugs,security,edge-cases,readability,performance,tests")
+EXTRA_IGNORE_PATTERNS_RAW = os.environ.get("EXTRA_IGNORE_PATTERNS", "")
 
 GITHUB_API = "https://api.github.com"
 MODELS_API = "https://models.github.ai/inference/chat/completions"
@@ -18,14 +20,22 @@ MAX_RETRIES = 3
 # Marker so we can find & update our own previous comment instead of piling up new ones
 COMMENT_MARKER = "<!-- ai-pr-review-action -->"
 
-# Files that add noise but no review value — skipped before sending to the model
-IGNORED_PATH_PATTERNS = (
+DEFAULT_IGNORED_PATH_PATTERNS = (
     "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "composer.lock",
     "Cargo.lock", "poetry.lock",
     ".min.js", ".min.css", ".map",
     "dist/", "build/", "vendor/", "node_modules/",
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".ttf",
 )
+
+FOCUS_AREA_DESCRIPTIONS = {
+    "bugs": "Bugs or correctness issues",
+    "security": "Security vulnerabilities (e.g. injection, unsafe deserialization, secrets in code, auth issues)",
+    "edge-cases": "Edge cases that may be missed (empty input, nulls, concurrency, boundary values)",
+    "readability": "Readability and maintainability",
+    "performance": "Performance concerns (e.g. unnecessary loops, N+1 queries, inefficient algorithms)",
+    "tests": "Missing or insufficient test coverage for the changes",
+}
 
 github_headers = {
     "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -34,9 +44,23 @@ github_headers = {
 }
 
 
+def get_ignored_patterns() -> tuple:
+    extra = tuple(p.strip() for p in EXTRA_IGNORE_PATTERNS_RAW.split(",") if p.strip())
+    return DEFAULT_IGNORED_PATH_PATTERNS + extra
+
+
+def get_focus_descriptions() -> list:
+    keys = [k.strip() for k in FOCUS_AREAS_RAW.split(",") if k.strip()]
+    descriptions = [FOCUS_AREA_DESCRIPTIONS[k] for k in keys if k in FOCUS_AREA_DESCRIPTIONS]
+    unknown = [k for k in keys if k not in FOCUS_AREA_DESCRIPTIONS]
+    if unknown:
+        print(f"Warning: ignoring unknown focus_areas: {unknown}", file=sys.stderr)
+    return descriptions or list(FOCUS_AREA_DESCRIPTIONS.values())
+
+
 def request_with_retry(method: str, url: str, **kwargs) -> requests.Response:
-    """Wraps requests with retry + exponential backoff on 429 / 5xx."""
     last_exc = None
+    resp = None
     for attempt in range(MAX_RETRIES):
         try:
             resp = requests.request(method, url, timeout=REQUEST_TIMEOUT, **kwargs)
@@ -53,16 +77,14 @@ def request_with_retry(method: str, url: str, **kwargs) -> requests.Response:
             time.sleep(wait)
     if last_exc:
         raise last_exc
-    return resp  # last response, even if it was a 429/5xx after exhausting retries
+    return resp
 
 
 def is_ignored_path(path: str) -> bool:
-    return any(pattern in path for pattern in IGNORED_PATH_PATTERNS)
+    return any(pattern in path for pattern in get_ignored_patterns())
 
 
 def get_pr_diff() -> str:
-    """Fetch the unified diff, filtering out noisy files. Falls back to
-    per-file patches if the unified diff endpoint fails for any reason."""
     url = f"{GITHUB_API}/repos/{REPO}/pulls/{PR_NUMBER}"
     headers = {**github_headers, "Accept": "application/vnd.github.v3.diff"}
     resp = request_with_retry("GET", url, headers=headers)
@@ -79,7 +101,6 @@ def get_pr_diff() -> str:
 
 
 def filter_diff_text(diff_text: str) -> str:
-    """Removes hunks for ignored files from a unified diff string."""
     lines = diff_text.split("\n")
     kept_lines = []
     skipping = False
@@ -92,7 +113,6 @@ def filter_diff_text(diff_text: str) -> str:
 
 
 def get_diff_from_files_endpoint() -> str:
-    """Fallback: reconstruct a pseudo-diff from the /files endpoint's per-file patches."""
     files = []
     page = 1
     while True:
@@ -119,25 +139,42 @@ def get_diff_from_files_endpoint() -> str:
     return "\n\n".join(parts)
 
 
-def get_ai_review(diff: str) -> str:
-    prompt = f"""You are an experienced software engineer reviewing a pull request.
-Review ONLY the diff below. Be concise and specific.
+def build_prompt(diff: str) -> str:
+    focus_list = "\n".join(f"- {desc}" for desc in get_focus_descriptions())
+    return f"""You are an experienced software engineer reviewing a pull request.
+Review ONLY the diff below. Be concise and specific, and reference file names
+and line numbers from the diff where possible.
 
-Focus on:
-- Bugs or correctness issues
-- Security concerns
-- Edge cases that may be missed
-- Readability / maintainability
-- Anything genuinely good, briefly
+Focus areas for this review:
+{focus_list}
 
-Skip nitpicks about formatting that a linter would catch.
-Use markdown. If the diff looks fine, say so briefly instead of inventing issues.
+Organize your response into exactly these four sections, using markdown
+headers. Omit a section entirely if it has nothing to report (don't write
+"none" — just skip it):
+
+### 🚨 Must Fix
+Critical issues that should block merging (bugs, security holes, broken logic).
+
+### ⚠️ Should Fix
+Real problems that aren't urgent but should be addressed soon.
+
+### 💡 Suggestions
+Optional improvements — style, minor readability, nice-to-haves.
+
+### ✅ Good
+Brief, genuine positives worth calling out. Skip generic praise.
+
+If the diff looks clean, keep the response short and say so briefly instead
+of inventing issues.
 
 Diff:
 ```diff
 {diff}
 ```
 """
+
+
+def get_ai_review(diff: str) -> str:
     resp = request_with_retry(
         "POST",
         MODELS_API,
@@ -147,8 +184,8 @@ Diff:
         },
         json={
             "model": MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 1200,
+            "messages": [{"role": "user", "content": build_prompt(diff)}],
+            "max_tokens": 1500,
         },
     )
     resp.raise_for_status()
@@ -156,9 +193,7 @@ Diff:
     return data["choices"][0]["message"]["content"].strip()
 
 
-def find_existing_review_comment_id() -> int | None:
-    """Looks for a previous comment from this bot on this PR, so we can update
-    it instead of posting a new one each time."""
+def find_existing_review_comment_id():
     page = 1
     while True:
         resp = request_with_retry(

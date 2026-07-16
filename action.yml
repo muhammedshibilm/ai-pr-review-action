@@ -19,6 +19,14 @@ inputs:
     description: "If true, a review failure (rate limit, API error, etc.) fails the whole check. Default false — reviews are non-blocking."
     required: false
     default: "false"
+  focus_areas:
+    description: "Comma-separated list of areas to focus the review on. Options: bugs, security, edge-cases, readability, performance, tests. Default is all of them."
+    required: false
+    default: "bugs,security,edge-cases,readability,performance,tests"
+  extra_ignore_patterns:
+    description: "Comma-separated list of additional path substrings to exclude from review, added on top of the built-in defaults (lock files, generated code, binaries)."
+    required: false
+    default: ""
   github_token:
     description: "GitHub token used to fetch the PR diff, post/update comments, and call GitHub Models"
     required: false
@@ -45,4 +53,6 @@ runs:
         MODEL: ${{ inputs.model }}
         MAX_DIFF_CHARS: ${{ inputs.max_diff_chars }}
         FAIL_ON_ERROR: ${{ inputs.fail_on_error }}
+        FOCUS_AREAS: ${{ inputs.focus_areas }}
+        EXTRA_IGNORE_PATTERNS: ${{ inputs.extra_ignore_patterns }}
       run: python ${{ github.action_path }}/scripts/ai_review.py
