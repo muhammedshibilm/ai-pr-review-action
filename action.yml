@@ -1,6 +1,6 @@
 name: "AI PR Review"
 description: "Reviews pull requests using free GitHub Models (no API key required)"
-author: "your-username"
+author: "muhammedshibilm"
 
 branding:
   icon: "eye"
@@ -15,8 +15,12 @@ inputs:
     description: "Maximum diff size (in characters) sent to the model before truncating"
     required: false
     default: "20000"
+  fail_on_error:
+    description: "If true, a review failure (rate limit, API error, etc.) fails the whole check. Default false — reviews are non-blocking."
+    required: false
+    default: "false"
   github_token:
-    description: "GitHub token used to fetch the PR diff, post comments, and call GitHub Models"
+    description: "GitHub token used to fetch the PR diff, post/update comments, and call GitHub Models"
     required: false
     default: ${{ github.token }}
 
@@ -40,4 +44,5 @@ runs:
         REPO: ${{ github.repository }}
         MODEL: ${{ inputs.model }}
         MAX_DIFF_CHARS: ${{ inputs.max_diff_chars }}
+        FAIL_ON_ERROR: ${{ inputs.fail_on_error }}
       run: python ${{ github.action_path }}/scripts/ai_review.py
