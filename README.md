@@ -29,7 +29,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: muhammedshibilm/ai-pr-review-action@v1.0.0
+      - uses: muhammedshibilm/ai-pr-review-action@v1.1.0
         # optional inputs:
         # with:
         #   model: openai/gpt-4o          # default: openai/gpt-4o-mini
