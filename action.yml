@@ -1,4 +1,4 @@
-name: "AI PR Review"
+name: "AI PR Review (GitHub Models)"
 description: "Reviews pull requests using free GitHub Models (no API key required)"
 author: "muhammedshibilm"
 
