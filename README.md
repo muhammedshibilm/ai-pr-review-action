@@ -51,6 +51,79 @@ No secrets required — uses the built-in `GITHUB_TOKEN`.
 - **Configurable ignore patterns** — add your own path patterns to skip
   via `extra_ignore_patterns`, on top of the built-in defaults.
 
+## Advanced Usage
+
+### Running multiple specialised reviewers (parallel jobs)
+
+Because the action accepts a `focus_areas` input, you can run several
+independent review jobs in the same workflow, each concentrating on a
+different aspect of the code — giving you feedback from multiple
+"reviewer perspectives" on a single PR.
+
+```yaml
+name: AI PR Review (Multi-Reviewer)
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  models: read
+
+jobs:
+  review-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: muhammedshibilm/ai-pr-review-action@v1.2.0
+        with:
+          focus_areas: "security,edge-cases"
+
+  review-performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: muhammedshibilm/ai-pr-review-action@v1.2.0
+        with:
+          focus_areas: "performance,bugs"
+
+  review-readability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: muhammedshibilm/ai-pr-review-action@v1.2.0
+        with:
+          focus_areas: "readability,tests"
+```
+
+**What happens:**
+- Each job runs the same action with a different `focus_areas` value.
+- On the PR's first run, each job posts its own comment, scoped to its area.
+- Jobs run in parallel, so total review time is roughly the same as a single review.
+
+> ⚠️ **Known limitation:** the action identifies "its own" comment using a
+> single fixed marker, not one scoped per `focus_areas`. That means this
+> pattern is safe for a **one-time** review (`types: [opened]`, as shown
+> above), but if you also trigger on `synchronize` (new commits pushed),
+> the parallel jobs will all match the *same* existing comment and can
+> overwrite each other on the second push — you may lose two of the three
+> reviews. Until comment tracking is scoped per reviewer, avoid
+> `synchronize`/`reopened` triggers in multi-reviewer setups, or expect
+> only the last-finishing job's comment to persist across pushes.
+>
+> **💡 Tip:** if you want one combined comment instead, add an
+> aggregation job that `needs` all reviewers and collects their outputs
+> (via job outputs or artifacts) into a single unified summary — more
+> setup, but avoids the collision issue entirely since only one job posts.
+
 ## Inputs
 
 | Input                    | Required | Default                                                     | Description                                                        |
@@ -90,6 +163,8 @@ Issues and PRs welcome! Ideas that would be great contributions:
 - Inline comments on specific lines instead of one summary comment
 - `/ai-review` comment-triggered mode as an alternative to automatic runs
 - Support for additional GitHub Models
+- Scope the comment-tracking marker per `focus_areas` so multi-reviewer
+  setups survive `synchronize` pushes without collisions
 
 Found a bug or have an idea? Open an issue at
 [github.com/muhammedshibilm/ai-pr-review-action/issues](https://github.com/muhammedshibilm/ai-pr-review-action/issues).
